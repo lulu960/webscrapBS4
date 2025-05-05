@@ -23,7 +23,7 @@ Interface web en Flask permettant de scraper automatiquement les articles du Blo
 
 ### 1. Cloner le dépôt
 ```bash
-git clone https://github.com/ton-utilisateur/scraper-bdm.git
+git clone https://github.com/lulu960/webscrapBS4.git
 cd webscrapBS4
 ```
 
