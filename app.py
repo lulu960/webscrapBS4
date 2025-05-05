@@ -4,8 +4,6 @@ from bs4 import BeautifulSoup
 from pymongo import MongoClient
 import time
 
-app = Flask(__name__)
-
 # --- CONFIGURATION ---
 BASE_URL_TEMPLATE = "https://www.blogdumoderateur.com/{category}/page/"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
@@ -49,11 +47,13 @@ def scrape_article(url):
 
     article_tag = soup.find("article")
     category = None
+    subcategories = []
     if article_tag:
         for c in article_tag.get("class", []):
             if c.startswith("category-"):
                 category = c.replace("category-", "").capitalize()
-                break
+            if c.startswith("tag-"):
+                subcategories.append(c.replace("tag-", "").capitalize())
 
     image_tag = soup.select_one("figure.article-hat-img img")
     image = None
@@ -85,6 +85,7 @@ def scrape_article(url):
         "author": author,
         "summary": summary,
         "category": category,
+        "subcategories": subcategories,
         "date": date,
         "image": image,
         "content_images": content_images,
@@ -96,136 +97,23 @@ def scrape_article(url):
 
     return article
 
-TEMPLATE = """
-<!DOCTYPE html>
-<html lang=\"fr\">
-<head>
-  <meta charset=\"UTF-8\">
-  <title>Scraper BDM</title>
-  <style>
-    body { font-family: sans-serif; margin: 2rem; background: #f8f9fa; }
-    h1 { color: #222; }
-    form { margin-bottom: 2rem; padding: 1rem; background: #fff; border: 1px solid #ddd; border-radius: 6px; }
-    select, input, button { margin-left: 1rem; padding: 0.4rem; }
-    ul { list-style: none; padding-left: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; }
-    li { background: #fff; padding: 1rem; border: 1px solid #ddd; border-radius: 6px; box-shadow: 1px 1px 4px rgba(0,0,0,0.1); position: relative; }
-    a { text-decoration: none; color: #007BFF; }
-    .image-preview { width: 100%; height: 180px; object-fit: cover; margin-bottom: 0.5rem; border-radius: 4px; background: #eee; }
-    .loader { display: none; margin-top: 1rem; }
-    .loading .loader { display: block; font-weight: bold; color: #555; }
-    small { color: #555; }
-  </style>
-<script>
-  function showLoader() {
-    document.querySelector('form').classList.add('loading');
-  }
+# --- Flask Web App ---
+app = Flask(__name__)
 
-  function updateFormAction(el) {
-    const category = el.value;
-    const pageInput = document.querySelector('input[name=pages]');
-    const button = document.querySelector('form button');
-    if (category === 'all') {
-      button.disabled = true;
-    } else {
-      button.disabled = false;
-    }
+with open("template.html", encoding="utf-8") as f:
+    TEMPLATE = f.read()
 
-    const formData = new URLSearchParams();
-    formData.append('category', category);
-    formData.append('pages', pageInput.value);
+with open("article_template.html", encoding="utf-8") as f:
+    ARTICLE_TEMPLATE = f.read()
 
-    fetch('/filter', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: formData
-    }).then(response => response.text()).then(html => {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, 'text/html');
-      document.body.innerHTML = doc.body.innerHTML;
-
-      // Réattacher l’event une seule fois
-      attachEvents();
-    });
-  }
-
-  function attachEvents() {
-    const catSelect = document.querySelector('select[name=category]');
-    if (catSelect && !catSelect.dataset.bound) {
-      catSelect.addEventListener('change', () => updateFormAction(catSelect));
-      catSelect.dataset.bound = "true";
-    }
-  }
-
-  window.addEventListener('DOMContentLoaded', attachEvents);
-</script>
-
-</head>
-<body>
-  <h1>📰 Scraper Blog du Modérateur</h1>
-  <form method=\"post\" action=\"/scrape\" onsubmit=\"showLoader()\">
-    <label>Catégorie :
-      <select name=\"category\">
-        <option value=\"all\" {% if selected_category == 'all' %}selected{% endif %}>ALL</option>
-        <option value=\"web\" {% if selected_category == 'web' %}selected{% endif %}>Web</option>
-        <option value=\"marketing\" {% if selected_category == 'marketing' %}selected{% endif %}>Marketing</option>
-        <option value=\"social\" {% if selected_category == 'social' %}selected{% endif %}>Social</option>
-        <option value=\"tech\" {% if selected_category == 'tech' %}selected{% endif %}>Tech</option>
-        <option value=\"tools\" {% if selected_category == 'tools' %}selected{% endif %}>Tools</option>
-      </select>
-    </label>
-    <label>Nombre de pages : <input type=\"number\" name=\"pages\" min=\"1\" value=\"5\"></label>
-    <button type=\"submit\" {% if selected_category == 'all' %}disabled{% endif %}>Lancer le scraping</button>
-    <div class=\"loader\">⏳ Scraping en cours...</div>
-  </form>
-
-  <h2>{{ articles|length }} articles affichés :</h2>
-  <ul>
-    {% for art in articles %}
-      <li>
-        {% if art.image %}<img src=\"{{ art.image }}\" class=\"image-preview\">{% endif %}
-        <a href=\"/article?url={{ art.url|urlencode }}\"><strong>{{ art.title }}</strong></a><br>
-        <small>{{ art.date }} par {{ art.author }}</small>
-      </li>
-    {% endfor %}
-  </ul>
-</body>
-</html>
-"""
-
-ARTICLE_TEMPLATE = """
-<!DOCTYPE html>
-<html lang='fr'>
-<head>
-  <meta charset='UTF-8'>
-  <title>{{ article.title }}</title>
-  <style>
-    body { font-family: sans-serif; max-width: 800px; margin: auto; background: #f9f9f9; padding: 2rem; }
-    h1 { color: #333; }
-    img { max-width: 100%; margin: 1rem 0; border-radius: 6px; }
-    .meta { color: #666; font-size: 0.9rem; margin-bottom: 1rem; }
-    .summary { font-style: italic; margin-bottom: 1.5rem; }
-  </style>
-</head>
-<body>
-  <h1>{{ article.title }}</h1>
-  <div class="meta">Publié le {{ article.date }} par {{ article.author }} | Catégorie : {{ article.category }}</div>
-  {% if article.image %}<img src="{{ article.image }}" alt="Image de l'article">{% endif %}
-  <p class="summary">{{ article.summary }}</p>
-  <p>{{ article.content.replace('\n', '<br>')|safe }}</p>
-  {% if article.content_images %}
-    <h3>Images dans l'article :</h3>
-    {% for img in article.content_images %}
-      <img src="{{ img }}" alt="Image de l'article">
-    {% endfor %}
-  {% endif %}
-</body>
-</html>
-"""
 
 @app.route("/", methods=["GET"])
 def index():
-    existing_articles = list(collection.find().sort("date", -1)) if SAVE_TO_MONGO else []
-    return render_template_string(TEMPLATE, articles=existing_articles, selected_category="all")
+    sort_by = request.args.get("sort", "date")
+    order = -1 if sort_by == "date" else 1
+    sort_field = "date" if sort_by == "date" else "author"
+    existing_articles = list(collection.find().sort(sort_field, order)) if SAVE_TO_MONGO else []
+    return render_template_string(TEMPLATE, articles=existing_articles, selected_category="all", sort_by=sort_by)
 
 @app.route("/scrape", methods=["POST"])
 def scrape():
@@ -253,11 +141,15 @@ def scrape():
 @app.route("/filter", methods=["POST"])
 def filter_category():
     category = request.form.get("category")
+    sort_by = request.form.get("sort", "date")
+    order = -1 if sort_by == "date" else 1
+    sort_field = "date" if sort_by == "date" else "author"
+
     if category == "all":
-        articles = list(collection.find().sort("date", -1))
+        articles = list(collection.find().sort(sort_field, order))
     else:
-        articles = list(collection.find({"category": category.capitalize()}).sort("date", -1))
-    return render_template_string(TEMPLATE, articles=articles, selected_category=category)
+        articles = list(collection.find({"category": category.capitalize()}).sort(sort_field, order))
+    return render_template_string(TEMPLATE, articles=articles, selected_category=category, sort_by=sort_by)
 
 @app.route("/article")
 def view_article():
@@ -269,4 +161,3 @@ def view_article():
 
 if __name__ == "__main__":
     app.run(debug=True)
-

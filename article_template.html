@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ article.title }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: auto;
+            padding: 20px;
+            background: #f5f5f5;
+            color: #333;
+        }
+        h1 {
+            color: #222;
+        }
+        .meta {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 1em;
+        }
+        img.main {
+            max-width: 100%;
+            height: auto;
+            margin: 20px 0;
+            display: block;
+        }
+        .content-images img {
+            max-width: 100%;
+            height: auto;
+            margin: 10px 0;
+        }
+        .back-link {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 8px 12px;
+            background: #007BFF;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+        .back-link:hover {
+            background: #0056b3;
+        }
+        .summary {
+            font-style: italic;
+            margin-bottom: 20px;
+        }
+        .content {
+            line-height: 1.6;
+        }
+        .tags {
+            margin-top: 20px;
+            font-size: 0.85em;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+    <h1>{{ article.title }}</h1>
+    <div class="meta">
+        Publié le {{ article.date }} par {{ article.author }}<br>
+        Catégorie : {{ article.category }}{% if article.subcategories %} — Sous-catégories : {{ article.subcategories | join(', ') }}{% endif %}
+    </div>
+
+    {% if article.image %}
+        <img src="{{ article.image }}" alt="Image principale" class="main">
+    {% endif %}
+
+    {% if article.summary %}
+        <div class="summary">{{ article.summary }}</div>
+    {% endif %}
+
+    <div class="content">{{ article.content | replace('\n', '<br>') | safe }}</div>
+
+    {% if article.content_images %}
+        <div class="content-images">
+            <h3>Images de l'article :</h3>
+            {% for img in article.content_images %}
+                <img src="{{ img }}" alt="Image additionnelle">
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <a class="back-link" href="/">← Retour aux articles</a>
+</body>
+</html>

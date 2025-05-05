@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Scraper BDM</title>
+  <style>
+    body { font-family: sans-serif; margin: 2rem; background: #f8f9fa; }
+    h1 { color: #222; }
+    form { margin-bottom: 2rem; padding: 1rem; background: #fff; border: 1px solid #ddd; border-radius: 6px; }
+    select, input, button { margin-left: 1rem; padding: 0.4rem; }
+    ul { list-style: none; padding-left: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; }
+    li { background: #fff; padding: 1rem; border: 1px solid #ddd; border-radius: 6px; box-shadow: 1px 1px 4px rgba(0,0,0,0.1); position: relative; }
+    a { text-decoration: none; color: #007BFF; }
+    .image-preview { width: 100%; height: 180px; object-fit: cover; margin-bottom: 0.5rem; border-radius: 4px; background: #eee; }
+    .loader { display: none; margin-top: 1rem; }
+    .loading .loader { display: block; font-weight: bold; color: #555; }
+    small { color: #555; }
+  </style>
+<script>
+  function showLoader() {
+    document.querySelector('form').classList.add('loading');
+  }
+
+  function updateFormAction(el) {
+    const category = el.value;
+    const pageInput = document.querySelector('input[name=pages]');
+    const button = document.querySelector('form button');
+    if (category === 'all') {
+      button.disabled = true;
+    } else {
+      button.disabled = false;
+    }
+
+    const formData = new URLSearchParams();
+    formData.append('category', category);
+    formData.append('pages', pageInput.value);
+
+    fetch('/filter', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: formData
+    }).then(response => response.text()).then(html => {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      document.body.innerHTML = doc.body.innerHTML;
+      attachEvents();
+    });
+  }
+
+  function attachEvents() {
+    const catSelect = document.querySelector('select[name=category]');
+    if (catSelect && !catSelect.dataset.bound) {
+      catSelect.addEventListener('change', () => updateFormAction(catSelect));
+      catSelect.dataset.bound = "true";
+    }
+  }
+
+  window.addEventListener('DOMContentLoaded', attachEvents);
+</script>
+</head>
+<body>
+  <h1>📰 Scraper Blog du Modérateur</h1>
+  <form method="post" action="/scrape" onsubmit="showLoader()">
+    <label>Catégorie :
+      <select name="category">
+        <option value="all" {% if selected_category == 'all' %}selected{% endif %}>ALL</option>
+        <option value="web" {% if selected_category == 'web' %}selected{% endif %}>Web</option>
+        <option value="marketing" {% if selected_category == 'marketing' %}selected{% endif %}>Marketing</option>
+        <option value="social" {% if selected_category == 'social' %}selected{% endif %}>Social</option>
+        <option value="tech" {% if selected_category == 'tech' %}selected{% endif %}>Tech</option>
+        <option value="tools" {% if selected_category == 'tools' %}selected{% endif %}>Tools</option>
+      </select>
+    </label>
+    <label>Nombre de pages : <input type="number" name="pages" min="1" value="5"></label>
+    <button type="submit" {% if selected_category == 'all' %}disabled{% endif %}>Lancer le scraping</button>
+    <div class="loader">⏳ Scraping en cours...</div>
+  </form>
+
+  <h2>{{ articles|length }} articles affichés :</h2>
+  <ul>
+    {% for art in articles %}
+      <li>
+        {% if art.image %}<img src="{{ art.image }}" class="image-preview">{% endif %}
+        <a href="/article?url={{ art.url|urlencode }}"><strong>{{ art.title }}</strong></a><br>
+        <small>{{ art.date }} par {{ art.author }}</small>
+      </li>
+    {% endfor %}
+  </ul>
+</body>
+</html>
