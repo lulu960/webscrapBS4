@@ -3,6 +3,7 @@ import requests
 from bs4 import BeautifulSoup
 from pymongo import MongoClient
 import time
+from datetime import datetime
 
 # --- CONFIGURATION ---
 BASE_URL_TEMPLATE = "https://www.blogdumoderateur.com/{category}/page/"
@@ -106,14 +107,32 @@ with open("template.html", encoding="utf-8") as f:
 with open("article_template.html", encoding="utf-8") as f:
     ARTICLE_TEMPLATE = f.read()
 
-
 @app.route("/", methods=["GET"])
 def index():
     sort_by = request.args.get("sort", "date")
     order = -1 if sort_by == "date" else 1
     sort_field = "date" if sort_by == "date" else "author"
-    existing_articles = list(collection.find().sort(sort_field, order)) if SAVE_TO_MONGO else []
-    return render_template_string(TEMPLATE, articles=existing_articles, selected_category="all", sort_by=sort_by)
+
+    query = {}
+    if request.args.get("author"):
+        query["author"] = {"$regex": request.args["author"], "$options": "i"}
+    if request.args.get("category"):
+        query["category"] = request.args["category"]
+    if request.args.get("subcategory"):
+        query["subcategories"] = {"$regex": request.args["subcategory"], "$options": "i"}
+    if request.args.get("title"):
+        query["title"] = {"$regex": request.args["title"], "$options": "i"}
+
+    if request.args.get("start") or request.args.get("end"):
+        date_query = {}
+        if request.args.get("start"):
+            date_query["$gte"] = request.args["start"]
+        if request.args.get("end"):
+            date_query["$lte"] = request.args["end"]
+        query["date"] = date_query
+
+    existing_articles = list(collection.find(query).sort(sort_field, order)) if SAVE_TO_MONGO else []
+    return render_template_string(TEMPLATE, articles=existing_articles, selected_category=request.args.get("category", "all"), sort_by=sort_by, request=request)
 
 @app.route("/scrape", methods=["POST"])
 def scrape():
@@ -149,7 +168,7 @@ def filter_category():
         articles = list(collection.find().sort(sort_field, order))
     else:
         articles = list(collection.find({"category": category.capitalize()}).sort(sort_field, order))
-    return render_template_string(TEMPLATE, articles=articles, selected_category=category, sort_by=sort_by)
+    return render_template_string(TEMPLATE, articles=articles, selected_category=category, sort_by=sort_by, request=request)
 
 @app.route("/article")
 def view_article():
@@ -161,3 +180,4 @@ def view_article():
 
 if __name__ == "__main__":
     app.run(debug=True)
+

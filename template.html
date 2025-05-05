@@ -7,7 +7,7 @@
     body { font-family: sans-serif; margin: 2rem; background: #f8f9fa; }
     h1 { color: #222; }
     form { margin-bottom: 2rem; padding: 1rem; background: #fff; border: 1px solid #ddd; border-radius: 6px; }
-    select, input, button { margin-left: 1rem; padding: 0.4rem; }
+    select, input, button { margin: 0.5rem; padding: 0.4rem; }
     ul { list-style: none; padding-left: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; }
     li { background: #fff; padding: 1rem; border: 1px solid #ddd; border-radius: 6px; box-shadow: 1px 1px 4px rgba(0,0,0,0.1); position: relative; }
     a { text-decoration: none; color: #007BFF; }
@@ -15,74 +15,83 @@
     .loader { display: none; margin-top: 1rem; }
     .loading .loader { display: block; font-weight: bold; color: #555; }
     small { color: #555; }
+    .filters { display: flex; flex-wrap: wrap; gap: 1rem; }
   </style>
-<script>
-  function showLoader() {
-    document.querySelector('form').classList.add('loading');
-  }
+  <script>
+    function showLoader() {
+      document.querySelector('form[action="/scrape"]').classList.add('loading');
+    }
 
-  function updateFormAction(el) {
-    const category = el.value;
-    const pageInput = document.querySelector('input[name=pages]');
-    const button = document.querySelector('form button');
-    if (category === 'all') {
-      button.disabled = true;
-    } else {
+    function updateCategoryState(el) {
+      const category = el.value;
+      const button = document.querySelector('form[action="/scrape"] button');
       button.disabled = false;
     }
 
-    const formData = new URLSearchParams();
-    formData.append('category', category);
-    formData.append('pages', pageInput.value);
-
-    fetch('/filter', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: formData
-    }).then(response => response.text()).then(html => {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, 'text/html');
-      document.body.innerHTML = doc.body.innerHTML;
-      attachEvents();
+    window.addEventListener('DOMContentLoaded', function () {
+      const categorySelect = document.querySelector('form[action="/scrape"] select[name="category"]');
+      if (categorySelect) {
+        categorySelect.addEventListener('change', () => updateCategoryState(categorySelect));
+      }
     });
-  }
-
-  function attachEvents() {
-    const catSelect = document.querySelector('select[name=category]');
-    if (catSelect && !catSelect.dataset.bound) {
-      catSelect.addEventListener('change', () => updateFormAction(catSelect));
-      catSelect.dataset.bound = "true";
-    }
-  }
-
-  window.addEventListener('DOMContentLoaded', attachEvents);
-</script>
+  </script>
 </head>
 <body>
   <h1>📰 Scraper Blog du Modérateur</h1>
+
+  <!-- Formulaire de scraping -->
   <form method="post" action="/scrape" onsubmit="showLoader()">
     <label>Catégorie :
       <select name="category">
-        <option value="all" {% if selected_category == 'all' %}selected{% endif %}>ALL</option>
         <option value="web" {% if selected_category == 'web' %}selected{% endif %}>Web</option>
         <option value="marketing" {% if selected_category == 'marketing' %}selected{% endif %}>Marketing</option>
         <option value="social" {% if selected_category == 'social' %}selected{% endif %}>Social</option>
         <option value="tech" {% if selected_category == 'tech' %}selected{% endif %}>Tech</option>
-        <option value="tools" {% if selected_category == 'tools' %}selected{% endif %}>Tools</option>
       </select>
     </label>
-    <label>Nombre de pages : <input type="number" name="pages" min="1" value="5"></label>
-    <button type="submit" {% if selected_category == 'all' %}disabled{% endif %}>Lancer le scraping</button>
+    <label>Nombre de pages :
+      <input type="number" name="pages" min="1" value="5">
+    </label>
+    <button type="submit">Lancer le scraping</button>
     <div class="loader">⏳ Scraping en cours...</div>
   </form>
 
-  <h2>{{ articles|length }} articles affichés :</h2>
+  <!-- Formulaire de recherche -->
+  <form method="get" action="/">
+    <div class="filters">
+      <label>Catégorie :
+        <select name="category">
+          <option value="">Toutes</option>
+          <option value="web" {{ 'selected' if request.args.get('category') == 'web' else '' }}>Web</option>
+          <option value="marketing" {{ 'selected' if request.args.get('category') == 'marketing' else '' }}>Marketing</option>
+          <option value="social" {{ 'selected' if request.args.get('category') == 'social' else '' }}>Social</option>
+          <option value="tech" {{ 'selected' if request.args.get('category') == 'tech' else '' }}>Tech</option>
+        </select>
+      </label>
+      <label>Sous-catégorie : <input type="text" name="subcategory" value="{{ request.args.get('subcategory', '') }}"></label>
+      <label>Auteur : <input type="text" name="author" value="{{ request.args.get('author', '') }}"></label>
+      <label>Titre contient : <input type="text" name="title" value="{{ request.args.get('title', '') }}"></label>
+      <label>Date de début : <input type="date" name="start" value="{{ request.args.get('start', '') }}"></label>
+      <label>Date de fin : <input type="date" name="end" value="{{ request.args.get('end', '') }}"></label>
+      <label>Tri :
+        <select name="sort">
+          <option value="date" {% if sort_by == 'date' %}selected{% endif %}>Par date</option>
+          <option value="author" {% if sort_by == 'author' %}selected{% endif %}>Par auteur</option>
+        </select>
+      </label>
+      <button type="submit">🔍 Rechercher</button>
+      <a href="/" style="padding: 0.4rem; background: #ccc; border-radius: 4px; text-decoration: none;">🔄 Réinitialiser</a>
+    </div>
+  </form>
+
+  <h2>{{ articles|length }} articles trouvés :</h2>
   <ul>
     {% for art in articles %}
       <li>
         {% if art.image %}<img src="{{ art.image }}" class="image-preview">{% endif %}
         <a href="/article?url={{ art.url|urlencode }}"><strong>{{ art.title }}</strong></a><br>
-        <small>{{ art.date }} par {{ art.author }}</small>
+        <small>{{ art.date }} — {{ art.author }}</small><br>
+        {% if art.subcategories %}<small>Sous-catégories : {{ art.subcategories | join(', ') }}</small>{% endif %}
       </li>
     {% endfor %}
   </ul>
