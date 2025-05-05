@@ -24,7 +24,7 @@ Interface web en Flask permettant de scraper automatiquement les articles du Blo
 ### 1. Cloner le dépôt
 ```bash
 git clone https://github.com/ton-utilisateur/scraper-bdm.git
-cd scraper-bdm
+cd webscrapBS4
 ```
 
 ### 2. Créer un environnement virtuel (optionnel)
